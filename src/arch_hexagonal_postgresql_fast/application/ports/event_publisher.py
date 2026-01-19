@@ -10,6 +10,22 @@ from arch_hexagonal_postgresql_fast.domain.entities.payment import Payment
 class EventPublisher(Protocol):
     """Interface for publishing domain events."""
 
+    async def publish_event(
+        self,
+        event_type: str,
+        payload: dict[str, object],
+        routing_key: str = "payments",
+    ) -> None:
+        """Publish a generic event to message queue.
+
+        Args:
+            event_type: Type of the event (e.g., 'PaymentCreated')
+            payload: Event data as dictionary
+            routing_key: Message routing key (default: 'payments')
+
+        """
+        ...
+
     async def publish_payment_created(self, payment: Payment) -> None:
         """Publish payment created event."""
         ...

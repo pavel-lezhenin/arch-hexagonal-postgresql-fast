@@ -75,17 +75,15 @@ class OutboxPublisherService:
             return
 
         try:
-            # Note: EventPublisher expects Payment objects, not generic events
-            # For now, we'll mark events as published without calling EventPublisher
-            # In production, either:
-            # 1. Reconstruct domain objects from outbox payload
-            # 2. Use a generic event publisher that accepts event_type + payload
-            # 3. Move EventPublisher logic to consume from RabbitMQ directly
+            # Publish to message queue via generic publish_event method
+            routing_key = f"{event.aggregate_type.lower()}s"  # e.g., "payments"
+            await self._event_publisher.publish_event(
+                event_type=event.event_type,
+                payload=event.payload,
+                routing_key=routing_key,
+            )
 
-            # Mark as published
-            await self._outbox_repo.mark_published(event_id)
-
-            # Mark as published
+            # Mark as published only after successful send
             await self._outbox_repo.mark_published(event_id)
 
             logger.info(
