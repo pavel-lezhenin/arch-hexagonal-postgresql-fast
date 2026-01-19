@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from arch_hexagonal_postgresql_fast.application.ports.event_publisher import (
     EventPublisher,
 )
 from arch_hexagonal_postgresql_fast.application.ports.idempotency_store import (
     IdempotencyStore,
+)
+from arch_hexagonal_postgresql_fast.application.ports.outbox_repository import (
+    OutboxEvent,
+    OutboxRepository,
 )
 from arch_hexagonal_postgresql_fast.application.ports.payment_provider import (
     PaymentProvider,
@@ -61,6 +65,7 @@ class RefundPayment:
         payment_provider: PaymentProvider,
         event_publisher: EventPublisher,
         idempotency_store: IdempotencyStore,
+        outbox_repository: OutboxRepository,
     ) -> None:
         """Initialize use case with dependencies."""
         self._payment_repo = payment_repository
@@ -68,6 +73,7 @@ class RefundPayment:
         self._provider = payment_provider
         self._events = event_publisher
         self._idempotency = idempotency_store
+        self._outbox_repo = outbox_repository
 
     async def execute(self, request: RefundPaymentRequest) -> RefundPaymentResponse:
         """Execute the refund use case."""
@@ -116,8 +122,20 @@ class RefundPayment:
         )
         await self._transaction_repo.save(transaction)
 
-        # Publish event
-        await self._events.publish_payment_refunded(payment, str(refund_amount))
+        # Save event to outbox (transactional)
+        await self._save_event_to_outbox(
+            aggregate_type="Payment",
+            aggregate_id=payment.id,
+            event_type="PaymentRefunded",
+            payload={
+                "payment_id": payment.id,
+                "customer_id": payment.customer_id,
+                "refund_amount": str(refund_amount),
+                "currency": payment.amount.currency,
+                "refund_transaction_id": refund_tx_id,
+                "status": payment.status.value,
+            },
+        )
 
         response = RefundPaymentResponse(
             payment_id=payment.id,
@@ -140,3 +158,21 @@ class RefundPayment:
         )
 
         return response
+
+    async def _save_event_to_outbox(
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        event_type: str,
+        payload: dict[str, object],
+    ) -> None:
+        """Save event to outbox for reliable publishing."""
+        event = OutboxEvent(
+            id=uuid.uuid4(),
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type=event_type,
+            payload=payload,
+            created_at=datetime.now(UTC),
+        )
+        await self._outbox_repo.save(event)
