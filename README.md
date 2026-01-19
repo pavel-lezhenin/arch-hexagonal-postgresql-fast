@@ -2,21 +2,21 @@
 
 **Event-Driven Hexagonal Payment Service** — production-ready payment processing with transactional outbox pattern, built on FastAPI + PostgreSQL + RabbitMQ.
 
-## 🎯 Цель проекта
+## 🎯 Project Goal
 
-Референсная реализация **Event-Driven Hexagonal Architecture** для платёжного сервиса с гарантией доставки событий и атомарностью транзакций.
+Reference implementation of **Event-Driven Hexagonal Architecture** for a payment service with guaranteed event delivery and transaction atomicity.
 
-### Что это и зачем
+### What This Is and Why
 
-| Проблема | Решение |
-|----------|---------|
-| Потеря событий при сбоях | **Transactional Outbox** — события сохраняются в БД вместе с платежом |
-| Дублирование платежей | **Idempotency Keys** через Redis |
-| Привязка к провайдеру | **Ports & Adapters** — легко добавить Stripe/PayPal/Adyen |
-| Сложность тестирования | **MockStripeAdapter** — тесты без реальных API |
-| Рассинхрон данных | **Exactly-once delivery** через outbox worker |
+| Problem | Solution |
+|---------|----------|
+| Event loss during failures | **Transactional Outbox** — events saved to DB together with payment |
+| Duplicate payments | **Idempotency Keys** via Redis |
+| Provider lock-in | **Ports & Adapters** — easily add Stripe/PayPal/Adyen |
+| Testing complexity | **MockStripeAdapter** — tests without real APIs |
+| Data inconsistency | **Exactly-once delivery** via outbox worker |
 
-### Ключевые паттерны
+### Key Patterns
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -32,10 +32,10 @@
 ```
 
 **Transactional Outbox Pattern:**
-- Платёж и событие сохраняются в одной транзакции
-- Background worker публикует события в RabbitMQ
-- При сбое — автоматический retry с exponential backoff
-- Гарантия: событие не потеряется даже при падении сервиса
+- Payment and event saved in single transaction
+- Background worker publishes events to RabbitMQ
+- On failure — automatic retry with exponential backoff
+- Guarantee: events won't be lost even if service crashes
 
 ## 💡 Business Value & Use Case
 
