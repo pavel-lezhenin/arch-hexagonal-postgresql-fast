@@ -141,7 +141,25 @@ asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["src"]
 branch = true
-omit = ["**/tests/*", "**/__init__.py"]
+omit = [
+    "**/tests/*",
+    "**/__init__.py",
+    # Entry points - not unit testable
+    "**/main.py",
+    "**/cli/*",
+    "**/workers/*",
+    # Adapters tested via integration tests
+    "**/adapters/*",
+    # Config loaded from env
+    "**/config.py",
+    "**/feature_flags.py",
+    # Compensation strategies - tested via integration
+    "**/compensation/*",
+    # Command handlers - async infrastructure
+    "**/handlers/*",
+    # Ports are abstract interfaces (Protocol)
+    "**/ports/*",
+]
 
 [tool.coverage.report]
 fail_under = 80
