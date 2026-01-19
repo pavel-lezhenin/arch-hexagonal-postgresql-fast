@@ -52,7 +52,7 @@ class OutboxPublisherService:
             try:
                 await self._publish_event_with_retry(event.id)
                 published_count += 1
-            except Exception:  # noqa: S110
+            except Exception:  # noqa: S110 # nosec B110
                 # Logged in _publish_event_with_retry
                 # Event will be moved to DLQ by separate process
                 pass
