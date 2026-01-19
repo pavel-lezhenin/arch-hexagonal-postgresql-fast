@@ -12,6 +12,10 @@ from arch_hexagonal_postgresql_fast.application.ports.event_publisher import (
 from arch_hexagonal_postgresql_fast.application.ports.idempotency_store import (
     IdempotencyStore,
 )
+from arch_hexagonal_postgresql_fast.application.ports.outbox_repository import (
+    OutboxEvent,
+    OutboxRepository,
+)
 from arch_hexagonal_postgresql_fast.application.ports.payment_provider import (
     PaymentProvider,
 )
@@ -66,6 +70,7 @@ class ProcessPayment:
         payment_provider: PaymentProvider,
         event_publisher: EventPublisher,
         idempotency_store: IdempotencyStore,
+        outbox_repository: OutboxRepository,
     ) -> None:
         """Initialize use case with dependencies."""
         self._payment_repo = payment_repository
@@ -73,17 +78,17 @@ class ProcessPayment:
         self._provider = payment_provider
         self._events = event_publisher
         self._idempotency = idempotency_store
+        self._outbox_repo = outbox_repository
 
-    async def execute(
-        self, request: ProcessPaymentRequest
-    ) -> ProcessPaymentResponse:
+    async def execute(self, request: ProcessPaymentRequest) -> ProcessPaymentResponse:
         """Execute the payment processing use case."""
         # Check idempotency
         if await self._idempotency.is_duplicate(request.idempotency_key):
-            cached = await self._idempotency.get_result(
-                request.idempotency_key
-            )
+            cached = await self._idempotency.get_result(request.idempotency_key)
             if cached:
+                # Parse created_at string back to datetime if needed
+                if isinstance(cached.get("created_at"), str):
+                    cached["created_at"] = datetime.fromisoformat(cached["created_at"])
                 return ProcessPaymentResponse(**cached)
 
         # Create payment entity
@@ -98,9 +103,21 @@ class ProcessPayment:
             metadata=request.metadata or {},
         )
 
-        # Save payment
+        # Save payment and event to outbox (transactional)
         await self._payment_repo.save(payment)
-        await self._events.publish_payment_created(payment)
+        await self._save_event_to_outbox(
+            aggregate_type="Payment",
+            aggregate_id=payment.id,
+            event_type="PaymentCreated",
+            payload={
+                "payment_id": payment.id,
+                "customer_id": payment.customer_id,
+                "amount": str(payment.amount.value),
+                "currency": payment.amount.currency,
+                "payment_method": payment.payment_method.value,
+                "status": payment.status.value,
+            },
+        )
 
         try:
             # Call payment provider
@@ -134,8 +151,20 @@ class ProcessPayment:
             await self._payment_repo.save(payment)
             await self._transaction_repo.save(transaction)
 
-            # Publish success event
-            await self._events.publish_payment_completed(payment)
+            # Save success event to outbox (transactional)
+            await self._save_event_to_outbox(
+                aggregate_type="Payment",
+                aggregate_id=payment.id,
+                event_type="PaymentCompleted",
+                payload={
+                    "payment_id": payment.id,
+                    "customer_id": payment.customer_id,
+                    "amount": str(payment.amount.value),
+                    "currency": payment.amount.currency,
+                    "provider_transaction_id": provider_tx_id,
+                    "status": payment.status.value,
+                },
+            )
 
             response = ProcessPaymentResponse(
                 payment_id=payment.id,
@@ -174,7 +203,37 @@ class ProcessPayment:
             )
             await self._transaction_repo.save(failed_tx)
 
-            # Publish failure event
-            await self._events.publish_payment_failed(payment, str(e))
+            # Save failure event to outbox (transactional)
+            await self._save_event_to_outbox(
+                aggregate_type="Payment",
+                aggregate_id=payment.id,
+                event_type="PaymentFailed",
+                payload={
+                    "payment_id": payment.id,
+                    "customer_id": payment.customer_id,
+                    "amount": str(payment.amount.value),
+                    "currency": payment.amount.currency,
+                    "error": str(e),
+                    "status": payment.status.value,
+                },
+            )
 
             raise
+
+    async def _save_event_to_outbox(
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        event_type: str,
+        payload: dict[str, object],
+    ) -> None:
+        """Save event to outbox for reliable publishing."""
+        event = OutboxEvent(
+            id=uuid.uuid4(),
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type=event_type,
+            payload=payload,
+            created_at=datetime.now(UTC),
+        )
+        await self._outbox_repo.save(event)

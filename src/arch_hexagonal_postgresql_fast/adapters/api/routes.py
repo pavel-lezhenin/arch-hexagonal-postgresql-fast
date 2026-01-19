@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from arch_hexagonal_postgresql_fast.adapters.api.dependencies import (
     get_event_publisher,
     get_idempotency_store,
+    get_outbox_repository,
     get_payment_provider,
     get_payment_repository,
     get_transaction_repository,
@@ -19,6 +20,9 @@ from arch_hexagonal_postgresql_fast.application.ports.event_publisher import (
 )
 from arch_hexagonal_postgresql_fast.application.ports.idempotency_store import (
     IdempotencyStore,
+)
+from arch_hexagonal_postgresql_fast.application.ports.outbox_repository import (
+    OutboxRepository,
 )
 from arch_hexagonal_postgresql_fast.application.ports.payment_provider import (
     PaymentProvider,
@@ -73,19 +77,23 @@ class RefundPaymentSchema(BaseModel):
 async def process_payment(
     request: ProcessPaymentSchema,
     payment_repo: PaymentRepository = Depends(get_payment_repository),
-    transaction_repo: TransactionRepository = Depends(
-        get_transaction_repository
-    ),
+    transaction_repo: TransactionRepository = Depends(get_transaction_repository),
     provider: PaymentProvider = Depends(get_payment_provider),
     events: EventPublisher = Depends(get_event_publisher),
     idempotency: IdempotencyStore = Depends(get_idempotency_store),
+    outbox_repo: OutboxRepository = Depends(get_outbox_repository),
 ) -> dict[str, str]:
     """Process a payment."""
     try:
         use_case = ProcessPayment(
-            payment_repo, transaction_repo, provider, events, idempotency
+            payment_repo,
+            transaction_repo,
+            provider,
+            events,
+            idempotency,
+            outbox_repo,
         )
-        
+
         result = await use_case.execute(
             ProcessPaymentRequest(
                 customer_id=request.customer_id,
@@ -96,7 +104,7 @@ async def process_payment(
                 metadata=request.metadata,
             )
         )
-        
+
         return {
             "payment_id": result.payment_id,
             "status": result.status,
@@ -115,19 +123,15 @@ async def refund_payment(
     payment_id: str,
     request: RefundPaymentSchema,
     payment_repo: PaymentRepository = Depends(get_payment_repository),
-    transaction_repo: TransactionRepository = Depends(
-        get_transaction_repository
-    ),
+    transaction_repo: TransactionRepository = Depends(get_transaction_repository),
     provider: PaymentProvider = Depends(get_payment_provider),
     events: EventPublisher = Depends(get_event_publisher),
     idempotency: IdempotencyStore = Depends(get_idempotency_store),
 ) -> dict[str, str]:
     """Refund a payment."""
     try:
-        use_case = RefundPayment(
-            payment_repo, transaction_repo, provider, events, idempotency
-        )
-        
+        use_case = RefundPayment(payment_repo, transaction_repo, provider, events, idempotency)
+
         # Get payment to determine currency
         payment = await payment_repo.get_by_id(payment_id)
         if not payment:
@@ -135,14 +139,14 @@ async def refund_payment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Payment {payment_id} not found",
             )
-        
+
         refund_amount = None
         if request.amount:
             refund_amount = Amount(
                 value=request.amount,
                 currency=payment.amount.currency,
             )
-        
+
         result = await use_case.execute(
             RefundPaymentRequest(
                 payment_id=payment_id,
@@ -150,7 +154,7 @@ async def refund_payment(
                 idempotency_key=request.idempotency_key,
             )
         )
-        
+
         return {
             "payment_id": result.payment_id,
             "refund_amount": result.refund_amount,
@@ -169,18 +173,14 @@ async def refund_payment(
 async def get_payment_status(
     payment_id: str,
     payment_repo: PaymentRepository = Depends(get_payment_repository),
-    transaction_repo: TransactionRepository = Depends(
-        get_transaction_repository
-    ),
+    transaction_repo: TransactionRepository = Depends(get_transaction_repository),
 ) -> dict[str, object]:
     """Get payment status."""
     try:
         use_case = GetTransactionStatus(payment_repo, transaction_repo)
-        
-        result = await use_case.execute(
-            GetTransactionStatusRequest(payment_id=payment_id)
-        )
-        
+
+        result = await use_case.execute(GetTransactionStatusRequest(payment_id=payment_id))
+
         return {
             "payment_id": result.payment_id,
             "customer_id": result.customer_id,

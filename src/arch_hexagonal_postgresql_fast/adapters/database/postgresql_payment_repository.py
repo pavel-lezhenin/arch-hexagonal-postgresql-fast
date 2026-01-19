@@ -30,7 +30,7 @@ class PostgreSQLPaymentRepository:
     async def save(self, payment: Payment) -> None:
         """Save or update a payment."""
         model = await self._session.get(PaymentModel, payment.id)
-        
+
         if model:
             # Update existing
             model.customer_id = payment.customer_id
@@ -41,13 +41,11 @@ class PostgreSQLPaymentRepository:
             model.status = payment.status.value
             model.provider_transaction_id = payment.provider_transaction_id
             model.refunded_amount_value = (
-                payment.refunded_amount.value
-                if payment.refunded_amount
-                else Decimal("0.00")
+                payment.refunded_amount.value if payment.refunded_amount else Decimal("0.00")
             )
             model.refunded_amount_currency = payment.amount.currency
             model.updated_at = payment.updated_at
-            model.metadata = payment.metadata
+            model.payment_metadata = payment.metadata
         else:
             # Create new
             model = PaymentModel(
@@ -60,17 +58,15 @@ class PostgreSQLPaymentRepository:
                 status=payment.status.value,
                 provider_transaction_id=payment.provider_transaction_id,
                 refunded_amount_value=(
-                    payment.refunded_amount.value
-                    if payment.refunded_amount
-                    else Decimal("0.00")
+                    payment.refunded_amount.value if payment.refunded_amount else Decimal("0.00")
                 ),
                 refunded_amount_currency=payment.amount.currency,
                 created_at=payment.created_at,
                 updated_at=payment.updated_at,
-                metadata=payment.metadata,
+                payment_metadata=payment.metadata,
             )
             self._session.add(model)
-        
+
         await self._session.commit()
         await self._session.refresh(model)
 
@@ -84,9 +80,7 @@ class PostgreSQLPaymentRepository:
     async def get_by_customer_id(self, customer_id: str) -> list[Payment]:
         """Get all payments for a customer."""
         result = await self._session.execute(
-            select(PaymentModel).where(
-                PaymentModel.customer_id == customer_id
-            )
+            select(PaymentModel).where(PaymentModel.customer_id == customer_id)
         )
         models = result.scalars().all()
         return [self._model_to_entity(m) for m in models]
@@ -103,9 +97,7 @@ class PostgreSQLPaymentRepository:
         return Payment(
             id=model.id,
             customer_id=model.customer_id,
-            amount=Amount(
-                value=model.amount_value, currency=model.amount_currency
-            ),
+            amount=Amount(value=model.amount_value, currency=model.amount_currency),
             payment_method=PaymentMethod(model.payment_method),
             provider=model.provider,
             status=TransactionStatus(model.status),
@@ -116,5 +108,5 @@ class PostgreSQLPaymentRepository:
             ),
             created_at=model.created_at,
             updated_at=model.updated_at,
-            metadata=model.metadata,
+            metadata=model.payment_metadata,
         )

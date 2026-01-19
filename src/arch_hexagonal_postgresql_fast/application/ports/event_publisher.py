@@ -18,14 +18,10 @@ class EventPublisher(Protocol):
         """Publish payment completed event."""
         ...
 
-    async def publish_payment_failed(
-        self, payment: Payment, error: str
-    ) -> None:
+    async def publish_payment_failed(self, payment: Payment, error: str) -> None:
         """Publish payment failed event."""
         ...
 
-    async def publish_payment_refunded(
-        self, payment: Payment, refund_amount: str
-    ) -> None:
+    async def publish_payment_refunded(self, payment: Payment, refund_amount: str) -> None:
         """Publish payment refunded event."""
         ...

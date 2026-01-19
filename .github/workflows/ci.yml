@@ -45,6 +45,7 @@ jobs:
       - run: pip install bandit
       - run: bandit -r src -c pyproject.toml
       - uses: gitleaks/gitleaks-action@v2
+        if: github.event_name != 'repository_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -73,6 +74,39 @@ jobs:
 
   integration-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: payments_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      rabbitmq:
+        image: rabbitmq:3.13-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -85,6 +119,9 @@ jobs:
       - name: Run integration tests
         env:
           COVERAGE_FILE: .coverage.integration
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/payments_test
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+          REDIS_URL: redis://localhost:6379/0
         run: coverage run -m pytest tests/integration -v -p no:cov
       - name: Upload integration coverage
         uses: actions/upload-artifact@v4

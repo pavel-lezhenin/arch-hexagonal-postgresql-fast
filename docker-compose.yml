@@ -27,13 +27,19 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      # Enable persistence
+      RABBITMQ_MNESIA_BASE: /var/lib/rabbitmq/mnesia
+      # Configure DLQ
+      RABBITMQ_DEFAULT_VHOST: /
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_config:/etc/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 5s
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -86,6 +92,7 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  rabbitmq_config:
   redis_data:
   loki_data:
   grafana_data:

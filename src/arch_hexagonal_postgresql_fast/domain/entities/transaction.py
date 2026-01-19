@@ -33,8 +33,6 @@ class Transaction:
         if not self.payment_id:
             raise ValueError("Payment ID is required")
         if self.transaction_type not in {"charge", "refund"}:
-            raise ValueError(
-                f"Invalid transaction type: {self.transaction_type}"
-            )
+            raise ValueError(f"Invalid transaction type: {self.transaction_type}")
         if not self.provider:
             raise ValueError("Provider is required")

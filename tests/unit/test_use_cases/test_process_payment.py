@@ -61,6 +61,15 @@ def mock_idempotency() -> Mock:
     return store
 
 
+@pytest.fixture
+def mock_outbox_repo() -> Mock:
+    """Create mock outbox repository."""
+    repo = Mock()
+    repo.save = AsyncMock()
+    repo.get_unpublished = AsyncMock(return_value=[])
+    return repo
+
+
 class TestProcessPayment:
     """Test ProcessPayment use case."""
 
@@ -71,6 +80,7 @@ class TestProcessPayment:
         mock_provider: Mock,
         mock_events: Mock,
         mock_idempotency: Mock,
+        mock_outbox_repo: Mock,
     ) -> None:
         """Test successful payment processing."""
         use_case = ProcessPayment(
@@ -79,6 +89,7 @@ class TestProcessPayment:
             mock_provider,
             mock_events,
             mock_idempotency,
+            mock_outbox_repo,
         )
 
         request = ProcessPaymentRequest(
@@ -95,8 +106,8 @@ class TestProcessPayment:
         assert result.provider_transaction_id == "tx_123"
         assert mock_provider.charge.called
         assert mock_payment_repo.save.call_count >= 1
-        assert mock_events.publish_payment_created.called
-        assert mock_events.publish_payment_completed.called
+        # Events now saved to outbox instead of direct publishing
+        assert mock_outbox_repo.save.call_count >= 2  # Created + Completed
 
     async def test_process_payment_with_idempotency(
         self,
@@ -105,6 +116,7 @@ class TestProcessPayment:
         mock_provider: Mock,
         mock_events: Mock,
         mock_idempotency: Mock,
+        mock_outbox_repo: Mock,
     ) -> None:
         """Test payment processing with idempotency check."""
         # Setup duplicate
@@ -124,6 +136,7 @@ class TestProcessPayment:
             mock_provider,
             mock_events,
             mock_idempotency,
+            mock_outbox_repo,
         )
 
         request = ProcessPaymentRequest(
@@ -146,12 +159,11 @@ class TestProcessPayment:
         mock_provider: Mock,
         mock_events: Mock,
         mock_idempotency: Mock,
+        mock_outbox_repo: Mock,
     ) -> None:
         """Test payment processing failure."""
         # Make provider fail
-        mock_provider.charge = AsyncMock(
-            side_effect=Exception("Payment failed")
-        )
+        mock_provider.charge = AsyncMock(side_effect=Exception("Payment failed"))
 
         use_case = ProcessPayment(
             mock_payment_repo,
@@ -159,6 +171,7 @@ class TestProcessPayment:
             mock_provider,
             mock_events,
             mock_idempotency,
+            mock_outbox_repo,
         )
 
         request = ProcessPaymentRequest(
@@ -172,4 +185,5 @@ class TestProcessPayment:
         with pytest.raises(Exception, match="Payment failed"):
             await use_case.execute(request)
 
-        assert mock_events.publish_payment_failed.called
+        # Failure event saved to outbox instead of direct publishing
+        assert mock_outbox_repo.save.call_count >= 2  # Created + Failed

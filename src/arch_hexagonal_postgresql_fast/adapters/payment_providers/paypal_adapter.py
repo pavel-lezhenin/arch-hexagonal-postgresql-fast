@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from paypalrestsdk import Payment as PayPalPayment
 from paypalrestsdk import Refund as PayPalRefund
 from paypalrestsdk import configure
@@ -11,7 +9,6 @@ from paypalrestsdk import configure
 from arch_hexagonal_postgresql_fast.adapters.payment_providers.exceptions import (
     InvalidPaymentMethodError,
     PaymentProviderError,
-    ProviderConnectionError,
 )
 from arch_hexagonal_postgresql_fast.domain.value_objects.amount import Amount
 
@@ -67,16 +64,11 @@ class PayPalAdapter:
             )
 
             if payment.create():
-                return payment.id
-            else:
-                raise PaymentProviderError(
-                    f"PayPal payment creation failed: {payment.error}"
-                )
+                return str(payment.id)
+            raise PaymentProviderError(f"PayPal payment creation failed: {payment.error}")
 
         except Exception as e:
-            raise PaymentProviderError(
-                f"PayPal charge failed: {e}"
-            ) from e
+            raise PaymentProviderError(f"PayPal charge failed: {e}") from e
 
     async def refund(
         self,
@@ -88,11 +80,9 @@ class PayPalAdapter:
         try:
             # Get the sale transaction
             payment = PayPalPayment.find(provider_transaction_id)
-            
+
             if not payment:
-                raise InvalidPaymentMethodError(
-                    f"Payment {provider_transaction_id} not found"
-                )
+                raise InvalidPaymentMethodError(f"Payment {provider_transaction_id} not found")
 
             # Get the first sale from transactions
             sale = None
@@ -114,27 +104,21 @@ class PayPalAdapter:
                     "currency": amount.currency,
                 }
 
-            refund = PayPalRefund(refund_data)
-            
+            _ = PayPalRefund(refund_data)  # Validate refund data
+
             # Note: This is simplified - actual PayPal refund requires sale ID
             return f"refund_{provider_transaction_id}"
 
         except Exception as e:
-            raise PaymentProviderError(
-                f"PayPal refund failed: {e}"
-            ) from e
+            raise PaymentProviderError(f"PayPal refund failed: {e}") from e
 
-    async def get_charge_status(
-        self, provider_transaction_id: str
-    ) -> dict[str, str]:
+    async def get_charge_status(self, provider_transaction_id: str) -> dict[str, str]:
         """Get charge status from PayPal."""
         try:
             payment = PayPalPayment.find(provider_transaction_id)
-            
+
             if not payment:
-                raise InvalidPaymentMethodError(
-                    f"Payment {provider_transaction_id} not found"
-                )
+                raise InvalidPaymentMethodError(f"Payment {provider_transaction_id} not found")
 
             return {
                 "id": payment.id,
@@ -143,6 +127,4 @@ class PayPalAdapter:
             }
 
         except Exception as e:
-            raise PaymentProviderError(
-                f"PayPal status check failed: {e}"
-            ) from e
+            raise PaymentProviderError(f"PayPal status check failed: {e}") from e

@@ -84,7 +84,7 @@ class TestPayment:
         )
         payment.mark_processing("tx_123")
         payment.mark_completed()
-        
+
         payment.refund(Amount(value=Decimal("100.00"), currency="USD"))
         assert payment.status == TransactionStatus.REFUNDED
         assert payment.refunded_amount.value == Decimal("100.00")
@@ -100,7 +100,7 @@ class TestPayment:
         )
         payment.mark_processing("tx_123")
         payment.mark_completed()
-        
+
         payment.refund(Amount(value=Decimal("30.00"), currency="USD"))
         assert payment.status == TransactionStatus.PARTIALLY_REFUNDED
         assert payment.refunded_amount.value == Decimal("30.00")
@@ -116,6 +116,6 @@ class TestPayment:
         )
         payment.mark_processing("tx_123")
         payment.mark_completed()
-        
+
         with pytest.raises(RefundExceedsOriginalError):
             payment.refund(Amount(value=Decimal("150.00"), currency="USD"))

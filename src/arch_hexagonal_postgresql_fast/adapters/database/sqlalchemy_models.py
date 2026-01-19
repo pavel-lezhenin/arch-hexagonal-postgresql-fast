@@ -6,14 +6,11 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import JSON, DateTime, Numeric, String
-from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
+from .base import Base
 
-class Base(AsyncAttrs, DeclarativeBase):
-    """Base class for all models."""
-
-    pass
+__all__ = ["Base", "CustomerModel", "PaymentModel", "TransactionModel"]
 
 
 class PaymentModel(Base):
@@ -31,15 +28,11 @@ class PaymentModel(Base):
     provider_transaction_id: Mapped[str | None] = mapped_column(
         String(255), nullable=True, index=True
     )
-    refunded_amount_value: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), default=Decimal("0.00")
-    )
+    refunded_amount_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     refunded_amount_currency: Mapped[str] = mapped_column(String(3))
-    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime)
-    metadata: Mapped[dict[str, str]] = mapped_column(
-        JSON, default=dict
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payment_metadata: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
 
 
 class TransactionModel(Base):
@@ -48,9 +41,7 @@ class TransactionModel(Base):
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    payment_id: Mapped[str] = mapped_column(
-        String(36), index=True
-    )
+    payment_id: Mapped[str] = mapped_column(String(36), index=True)
     amount_value: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     amount_currency: Mapped[str] = mapped_column(String(3))
     transaction_type: Mapped[str] = mapped_column(String(20))
@@ -59,13 +50,9 @@ class TransactionModel(Base):
     provider_transaction_id: Mapped[str | None] = mapped_column(
         String(255), nullable=True, index=True
     )
-    error_message: Mapped[str | None] = mapped_column(
-        String(1000), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
-    metadata: Mapped[dict[str, str]] = mapped_column(
-        JSON, default=dict
-    )
+    error_message: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    transaction_metadata: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
 
 
 class CustomerModel(Base):
@@ -76,7 +63,5 @@ class CustomerModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(DateTime)
-    metadata: Mapped[dict[str, str]] = mapped_column(
-        JSON, default=dict
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    customer_metadata: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)

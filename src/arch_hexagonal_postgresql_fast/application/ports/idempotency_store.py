@@ -16,11 +16,8 @@ class IdempotencyStore(Protocol):
         """Get cached result for idempotency key."""
         ...
 
-    async def store_result(
-        self, key: str, result: dict[str, Any], ttl: int = 86400
-    ) -> None:
-        """
-        Store result for idempotency key.
+    async def store_result(self, key: str, result: dict[str, Any], ttl: int = 86400) -> None:
+        """Store result for idempotency key.
 
         Args:
             key: Idempotency key

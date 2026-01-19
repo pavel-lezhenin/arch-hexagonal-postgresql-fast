@@ -69,9 +69,7 @@ class RefundPayment:
         self._events = event_publisher
         self._idempotency = idempotency_store
 
-    async def execute(
-        self, request: RefundPaymentRequest
-    ) -> RefundPaymentResponse:
+    async def execute(self, request: RefundPaymentRequest) -> RefundPaymentResponse:
         """Execute the refund use case."""
         # Check idempotency
         idempotency_key = request.idempotency_key or str(uuid.uuid4())
@@ -83,29 +81,18 @@ class RefundPayment:
         # Get payment
         payment = await self._payment_repo.get_by_id(request.payment_id)
         if not payment:
-            raise PaymentNotFoundError(
-                f"Payment {request.payment_id} not found"
-            )
+            raise PaymentNotFoundError(f"Payment {request.payment_id} not found")
 
         # Determine refund amount
-        refund_amount = (
-            request.amount
-            if request.amount
-            else payment.remaining_refundable_amount()
-        )
+        refund_amount = request.amount if request.amount else payment.remaining_refundable_amount()
 
         # Validate can refund
         if not payment.can_be_refunded():
-            raise ValueError(
-                f"Payment {payment.id} cannot be refunded "
-                f"(status: {payment.status})"
-            )
+            raise ValueError(f"Payment {payment.id} cannot be refunded (status: {payment.status})")
 
         # Call provider
         if not payment.provider_transaction_id:
-            raise ValueError(
-                f"Payment {payment.id} has no provider transaction ID"
-            )
+            raise ValueError(f"Payment {payment.id} has no provider transaction ID")
 
         refund_tx_id = await self._provider.refund(
             provider_transaction_id=payment.provider_transaction_id,
@@ -130,9 +117,7 @@ class RefundPayment:
         await self._transaction_repo.save(transaction)
 
         # Publish event
-        await self._events.publish_payment_refunded(
-            payment, str(refund_amount)
-        )
+        await self._events.publish_payment_refunded(payment, str(refund_amount))
 
         response = RefundPaymentResponse(
             payment_id=payment.id,

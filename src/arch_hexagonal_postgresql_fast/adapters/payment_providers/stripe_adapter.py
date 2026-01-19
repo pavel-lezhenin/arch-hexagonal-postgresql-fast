@@ -45,7 +45,7 @@ class StripeAdapter:
                 metadata=metadata or {},
                 idempotency_key=idempotency_key,
             )
-            return payment_intent["id"]
+            return str(payment_intent["id"])
         except stripe.error.CardError as e:
             # Card was declined
             raise InsufficientFundsError(str(e)) from e
@@ -78,7 +78,7 @@ class StripeAdapter:
                 params["idempotency_key"] = idempotency_key
 
             refund = stripe.Refund.create(**params)  # type: ignore[arg-type]
-            return refund["id"]
+            return str(refund["id"])
         except stripe.error.InvalidRequestError as e:
             raise InvalidPaymentMethodError(str(e)) from e
         except (
@@ -89,14 +89,10 @@ class StripeAdapter:
         except Exception as e:
             raise PaymentProviderError(f"Stripe refund failed: {e}") from e
 
-    async def get_charge_status(
-        self, provider_transaction_id: str
-    ) -> dict[str, str]:
+    async def get_charge_status(self, provider_transaction_id: str) -> dict[str, str]:
         """Get charge status from Stripe."""
         try:
-            payment_intent = stripe.PaymentIntent.retrieve(
-                provider_transaction_id
-            )
+            payment_intent = stripe.PaymentIntent.retrieve(provider_transaction_id)
             return {
                 "id": payment_intent["id"],
                 "status": payment_intent["status"],
@@ -104,6 +100,4 @@ class StripeAdapter:
                 "currency": payment_intent["currency"],
             }
         except Exception as e:
-            raise PaymentProviderError(
-                f"Stripe status check failed: {e}"
-            ) from e
+            raise PaymentProviderError(f"Stripe status check failed: {e}") from e

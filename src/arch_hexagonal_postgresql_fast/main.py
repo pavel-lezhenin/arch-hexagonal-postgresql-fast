@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import uvicorn
 
-from arch_hexagonal_postgresql_fast.adapters.api.fastapi_app import app
-
 
 def main() -> None:
     """Run the application."""
     uvicorn.run(
         "arch_hexagonal_postgresql_fast.adapters.api.fastapi_app:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104 - Required for Docker/container environments
         port=8000,
         reload=True,
     )

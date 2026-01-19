@@ -57,21 +57,15 @@ class GetTransactionStatus:
         self._payment_repo = payment_repository
         self._transaction_repo = transaction_repository
 
-    async def execute(
-        self, request: GetTransactionStatusRequest
-    ) -> GetTransactionStatusResponse:
+    async def execute(self, request: GetTransactionStatusRequest) -> GetTransactionStatusResponse:
         """Execute the get status use case."""
         # Get payment
         payment = await self._payment_repo.get_by_id(request.payment_id)
         if not payment:
-            raise PaymentNotFoundError(
-                f"Payment {request.payment_id} not found"
-            )
+            raise PaymentNotFoundError(f"Payment {request.payment_id} not found")
 
         # Get all transactions for this payment
-        transactions = await self._transaction_repo.get_by_payment_id(
-            request.payment_id
-        )
+        transactions = await self._transaction_repo.get_by_payment_id(request.payment_id)
 
         transaction_infos = [
             TransactionInfo(

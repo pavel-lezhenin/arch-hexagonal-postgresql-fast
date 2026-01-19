@@ -27,7 +27,7 @@ class PostgreSQLTransactionRepository:
     async def save(self, transaction: Transaction) -> None:
         """Save a transaction."""
         model = await self._session.get(TransactionModel, transaction.id)
-        
+
         if model:
             # Update existing
             model.payment_id = transaction.payment_id
@@ -36,11 +36,9 @@ class PostgreSQLTransactionRepository:
             model.transaction_type = transaction.transaction_type
             model.status = transaction.status.value
             model.provider = transaction.provider
-            model.provider_transaction_id = (
-                transaction.provider_transaction_id
-            )
+            model.provider_transaction_id = transaction.provider_transaction_id
             model.error_message = transaction.error_message
-            model.metadata = transaction.metadata
+            model.transaction_metadata = transaction.metadata
         else:
             # Create new
             model = TransactionModel(
@@ -54,10 +52,10 @@ class PostgreSQLTransactionRepository:
                 provider_transaction_id=transaction.provider_transaction_id,
                 error_message=transaction.error_message,
                 created_at=transaction.created_at,
-                metadata=transaction.metadata,
+                transaction_metadata=transaction.metadata,
             )
             self._session.add(model)
-        
+
         await self._session.commit()
         await self._session.refresh(model)
 
@@ -68,9 +66,7 @@ class PostgreSQLTransactionRepository:
             return None
         return self._model_to_entity(model)
 
-    async def get_by_payment_id(
-        self, payment_id: str
-    ) -> list[Transaction]:
+    async def get_by_payment_id(self, payment_id: str) -> list[Transaction]:
         """Get all transactions for a payment."""
         result = await self._session.execute(
             select(TransactionModel)
@@ -86,8 +82,7 @@ class PostgreSQLTransactionRepository:
         """Get transaction by provider transaction ID."""
         result = await self._session.execute(
             select(TransactionModel).where(
-                TransactionModel.provider_transaction_id
-                == provider_transaction_id
+                TransactionModel.provider_transaction_id == provider_transaction_id
             )
         )
         model = result.scalar_one_or_none()
@@ -100,14 +95,12 @@ class PostgreSQLTransactionRepository:
         return Transaction(
             id=model.id,
             payment_id=model.payment_id,
-            amount=Amount(
-                value=model.amount_value, currency=model.amount_currency
-            ),
+            amount=Amount(value=model.amount_value, currency=model.amount_currency),
             transaction_type=model.transaction_type,
             status=TransactionStatus(model.status),
             provider=model.provider,
             provider_transaction_id=model.provider_transaction_id,
             error_message=model.error_message,
             created_at=model.created_at,
-            metadata=model.metadata,
+            metadata=model.transaction_metadata,
         )

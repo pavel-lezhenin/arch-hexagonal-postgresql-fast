@@ -1,6 +1,128 @@
 # arch-hexagonal-postgresql-fast
 
-Hexagonal architecture (ports & adapters) payment processing service built with FastAPI, PostgreSQL, and multiple payment providers (Stripe, PayPal).
+**Event-Driven Hexagonal Payment Service** — production-ready payment processing with transactional outbox pattern, built on FastAPI + PostgreSQL + RabbitMQ.
+
+## 🎯 Цель проекта
+
+Референсная реализация **Event-Driven Hexagonal Architecture** для платёжного сервиса с гарантией доставки событий и атомарностью транзакций.
+
+### Что это и зачем
+
+| Проблема | Решение |
+|----------|---------|
+| Потеря событий при сбоях | **Transactional Outbox** — события сохраняются в БД вместе с платежом |
+| Дублирование платежей | **Idempotency Keys** через Redis |
+| Привязка к провайдеру | **Ports & Adapters** — легко добавить Stripe/PayPal/Adyen |
+| Сложность тестирования | **MockStripeAdapter** — тесты без реальных API |
+| Рассинхрон данных | **Exactly-once delivery** через outbox worker |
+
+### Ключевые паттерны
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Event-Driven Flow                            │
+│                                                                 │
+│  POST /payments ──► UseCase ──► PostgreSQL (Payment + Outbox)  │
+│                                        │                        │
+│                         OutboxWorker ◄─┘                        │
+│                              │                                  │
+│                              ▼                                  │
+│                         RabbitMQ ──► Consumers (Analytics, etc) │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Transactional Outbox Pattern:**
+- Платёж и событие сохраняются в одной транзакции
+- Background worker публикует события в RabbitMQ
+- При сбое — автоматический retry с exponential backoff
+- Гарантия: событие не потеряется даже при падении сервиса
+
+## 💡 Business Value & Use Case
+
+This project demonstrates a **production-ready payment processing microservice** that handles real-world challenges:
+
+### What We Built
+
+A payment service that:
+- **Processes payments** across multiple providers (Stripe, PayPal) with unified interface
+- **Prevents duplicate charges** through Redis-based idempotency keys
+- **Maintains transactional integrity** using PostgreSQL ACID guarantees
+- **Publishes lifecycle events** to RabbitMQ for downstream systems (analytics, notifications)
+- **Supports partial/full refunds** with domain-driven business rules
+- **Provides audit trail** through immutable transaction records
+
+### Business Benefits
+
+1. **🔌 Provider Independence**: Easily switch or add payment providers without changing business logic
+2. **💰 Revenue Protection**: Idempotency prevents double-charging customers during network failures
+3. **📊 Observability**: Structured logging + event stream enables real-time analytics and alerting
+4. **🔒 Data Integrity**: PostgreSQL transactions ensure payments and refunds are always consistent
+5. **⚡ Performance**: Async architecture handles high throughput with low latency
+6. **🧪 Quality**: 80% test coverage requirement catches bugs before production
+
+### When to Use Hexagonal Architecture ✅
+
+**Ideal for:**
+- **Payment systems** where provider flexibility is critical (easily add Adyen, Square, etc.)
+- **Long-lived applications** that will evolve over 5+ years
+- **Multi-tenant systems** where different clients need different integrations
+- **Regulated domains** (finance, healthcare) requiring strict business rules separation
+- **Microservices** with complex domain logic independent of infrastructure
+- **Team scaling** where domain experts and infrastructure engineers work in parallel
+- **Testing-critical systems** requiring extensive mocking and isolation
+
+**Example scenarios:**
+- Marketplace platforms supporting multiple payment gateways per merchant
+- B2B SaaS needing custom integrations per enterprise customer
+- Financial applications with complex refund/chargeback workflows
+- Systems migrating between cloud providers or databases
+
+### When NOT to Use Hexagonal Architecture ❌
+
+**Avoid for:**
+- **Simple CRUD apps** with minimal business logic (over-engineering)
+- **Proof-of-concepts** or MVPs where speed > structure
+- **Single-use scripts** or data processing pipelines
+- **Tight deadlines** with small teams (learning curve overhead)
+- **Read-heavy applications** with simple queries (layered is sufficient)
+- **Throwaway prototypes** that won't be maintained
+
+**Example scenarios:**
+- Admin dashboard reading from database and displaying tables
+- Batch jobs transforming CSV files without complex rules
+- Weekend hackathon projects
+- Internal tools with 1-2 developers
+
+### Real-World Impact
+
+**Before Hexagonal:**
+```python
+# Tightly coupled to Stripe
+def charge_customer(amount, card_token):
+    stripe.Charge.create(amount=amount, source=card_token)
+    db.save_payment(...)
+```
+❌ Changing to PayPal requires rewriting entire payment flow  
+❌ Testing requires hitting real Stripe API  
+❌ Business rules scattered across infrastructure code
+
+**After Hexagonal:**
+```python
+# Domain-driven with injected dependencies
+class ProcessPayment:
+    def __init__(self, payment_repo, provider, events):
+        # Ports injected - implementation doesn't matter
+        ...
+    
+    async def execute(self, request):
+        # Pure business logic
+        payment = Payment(...)  # Domain entity
+        payment.mark_processing(...)
+        await self.provider.charge(...)  # Abstract port
+```
+✅ Add PayPal by implementing `PaymentProvider` interface  
+✅ Test with mocked ports - no external calls  
+✅ Business rules in domain entities - single source of truth
 
 ## Architecture Overview
 
@@ -54,7 +176,9 @@ This project demonstrates **Hexagonal Architecture** (also known as Ports and Ad
 ## Features
 
 - ✅ **Hexagonal Architecture** with ports & adapters pattern
-- ✅ **Multiple Payment Providers** (Stripe, PayPal) via adapter pattern
+- ✅ **Transactional Outbox** — reliable event publishing with exactly-once semantics
+- ✅ **Background Outbox Worker** — integrated in FastAPI lifespan
+- ✅ **Multiple Payment Providers** (Stripe, PayPal, Mock) via adapter pattern
 - ✅ **PostgreSQL** for transactional persistence (SQLAlchemy async)
 - ✅ **RabbitMQ** for event publishing (payment lifecycle events)
 - ✅ **Redis** for idempotency (prevent duplicate charges)
@@ -72,27 +196,34 @@ This project demonstrates **Hexagonal Architecture** (also known as Ports and Ad
 | **Database**        | PostgreSQL 16 + SQLAlchemy 2.0 |
 | **Message Queue**   | RabbitMQ 3.13                  |
 | **Cache/Idempotency** | Redis 7                       |
-| **Payment Providers** | Stripe, PayPal                |
-| **Logging**         | Loki + Grafana                 |
+| **Payment Providers** | Stripe, PayPal, MockAdapter   |
+| **Logging**         | Loki + Grafana + Promtail      |
 | **Testing**         | pytest + testcontainers        |
 
-## 📦 Installation
-
-See [QUICKSTART.md](QUICKSTART.md) for detailed setup instructions.
-
-Quick start:
+## 🚀 Quick Start
 
 ```bash
-# Clone and navigate
-cd packages/arch-hexagonal-postgresql-fast
+# Start infrastructure
+docker compose up -d
 
-# Install dependencies
+# Install dependencies  
 pip install -e ".[dev]"
 
-# Copy environment file
-cp .env.example .env
+# Run migrations
+alembic upgrade head
 
-# Edit .env with your Stripe/PayPal credentials
+# Start server (with integrated outbox worker)
+uvicorn arch_hexagonal_postgresql_fast.adapters.api.fastapi_app:app --reload
+
+# Test payment
+curl -X POST http://localhost:8000/api/v1/payments \
+  -H "Content-Type: application/json" \
+  -d '{"customer_id":"cust_001","amount":99.99,"currency":"USD","payment_method":"credit_card","payment_method_token":"tok_visa","idempotency_key":"unique_001"}'
+```
+
+**Swagger UI:** http://localhost:8000/docs
+
+See [QUICKSTART.md](QUICKSTART.md) for detailed setup.
 
 # Start infrastructure
 docker compose up -d

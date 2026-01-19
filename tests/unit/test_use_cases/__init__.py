@@ -149,9 +149,7 @@ class TestProcessPayment:
     ) -> None:
         """Test payment processing failure."""
         # Make provider fail
-        mock_provider.charge = AsyncMock(
-            side_effect=Exception("Payment failed")
-        )
+        mock_provider.charge = AsyncMock(side_effect=Exception("Payment failed"))
 
         use_case = ProcessPayment(
             mock_payment_repo,

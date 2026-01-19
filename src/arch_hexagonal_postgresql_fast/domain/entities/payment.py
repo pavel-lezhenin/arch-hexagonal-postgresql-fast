@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal
 
 from arch_hexagonal_postgresql_fast.domain.exceptions import (
     InvalidPaymentStateError,
@@ -30,7 +29,7 @@ class Payment:
     provider: str
     status: TransactionStatus = TransactionStatus.PENDING
     provider_transaction_id: str | None = None
-    refunded_amount: Amount | None = None
+    refunded_amount: Amount = field(default_factory=lambda: Amount.zero())
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, str] = field(default_factory=dict)
@@ -44,9 +43,9 @@ class Payment:
         if not self.provider:
             raise ValueError("Payment provider is required")
 
-        # Initialize refunded_amount with same currency as payment
-        if self.refunded_amount is None:
-            self.refunded_amount = Amount.zero(currency=self.amount.currency)
+        # Ensure refunded_amount has same currency as payment
+        if self.refunded_amount.currency != self.amount.currency:
+            object.__setattr__(self, "refunded_amount", Amount.zero(currency=self.amount.currency))
 
     def mark_processing(self, provider_transaction_id: str) -> None:
         """Mark payment as processing."""
@@ -82,26 +81,23 @@ class Payment:
     def refund(self, refund_amount: Amount) -> None:
         """Apply refund to payment."""
         if not self.status.can_refund():
-            raise InvalidPaymentStateError(
-                f"Cannot refund payment with status {self.status}"
-            )
+            raise InvalidPaymentStateError(f"Cannot refund payment with status {self.status}")
 
         # Validate refund amount
         total_refunded = self.refunded_amount + refund_amount
         if total_refunded.value > self.amount.value:
             raise RefundExceedsOriginalError(
-                f"Refund amount {total_refunded} exceeds "
-                f"original payment {self.amount}"
+                f"Refund amount {total_refunded} exceeds original payment {self.amount}"
             )
 
         self.refunded_amount = total_refunded
-        
+
         # Update status based on refund amount
         if self.refunded_amount.value == self.amount.value:
             self.status = TransactionStatus.REFUNDED
         else:
             self.status = TransactionStatus.PARTIALLY_REFUNDED
-        
+
         self.updated_at = datetime.now(UTC)
 
     def can_be_refunded(self) -> bool:

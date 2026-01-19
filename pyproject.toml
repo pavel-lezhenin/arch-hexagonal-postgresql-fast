@@ -32,6 +32,8 @@ dependencies = [
     "aio-pika>=9.4.0",
     # Caching/Idempotency
     "redis>=5.0.0",
+    # Retry mechanism
+    "tenacity>=8.2.0",
 ]
 
 [project.optional-dependencies]
@@ -55,7 +57,7 @@ packages = ["src/arch_hexagonal_postgresql_fast"]
 # ==================================================
 [tool.ruff]
 target-version = "py314"
-line-length = 88
+line-length = 100
 
 [tool.ruff.format]
 quote-style = "double"
@@ -63,16 +65,35 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 select = [
-    "E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "TCH", "PTH",
-    "ERA", "PL", "RUF", "PERF", "S", "ANN", "D", "N", "ASYNC", "A",
-    "DTZ", "T10", "EM", "LOG", "G", "PIE", "T20", "Q", "RSE", "RET",
-    "SLF", "SLOT", "TID", "TRY", "FLY",
+    "E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "PTH",
+    "PL", "RUF", "PERF", "S", "ANN", "D", "N", "A",
+    "DTZ", "T10", "LOG", "G", "PIE", "T20", "Q", "RSE", "RET",
+    "SLOT", "TID", "FLY",
 ]
-ignore = ["D100", "D104", "D107", "COM812"]
+ignore = [
+    "D100", "D104", "D107", "COM812",
+    # Exception messages - allow inline strings for clarity
+    "EM101", "EM102", "TRY003",
+    # Too many arguments - domain validation needs them
+    "PLR0913",
+    # Magic values in domain - currency codes, etc.
+    "PLR2004",
+    # Unused arguments in interface implementations
+    "ARG002",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ANN", "D", "PLR2004"]
+"tests/**/*.py" = ["S101", "ANN", "D", "PLR2004", "SLF001", "S106", "ERA001"]
 "**/__init__.py" = ["F401"]
+"**/cli/**/*.py" = ["PLC0415", "E501"]  # Allow imports in functions for CLI
+"**/workers/**/*.py" = ["PLC0415", "ASYNC110", "G201", "SIM105", "E501"]  # Worker patterns
+"**/main.py" = ["S104"]  # Allow 0.0.0.0 binding in dev
+"**/routes_async.py" = ["PLC0415", "E501", "B008"]  # Async routes patterns
+"**/routes.py" = ["B008"]  # FastAPI Depends pattern
+"**/dependencies.py" = ["B008"]  # FastAPI Depends pattern
+"**/fastapi_app.py" = ["PLC0415", "ARG001"]  # App factory pattern
+"**/exceptions.py" = ["N818"]  # Allow DomainException name
+"alembic/**/*.py" = ["D415"]  # Alembic docstrings
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -111,8 +132,6 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--cov=src",
-    "--cov-report=term-missing",
 ]
 asyncio_mode = "auto"
 

@@ -23,8 +23,7 @@ class PaymentProvider(Protocol):
         customer_id: str,
         metadata: dict[str, str] | None = None,
     ) -> str:
-        """
-        Charge a payment method.
+        """Charge a payment method.
 
         Args:
             amount: Amount to charge
@@ -47,8 +46,7 @@ class PaymentProvider(Protocol):
         amount: Amount | None = None,
         idempotency_key: str | None = None,
     ) -> str:
-        """
-        Refund a charge.
+        """Refund a charge.
 
         Args:
             provider_transaction_id: Original transaction ID
@@ -63,11 +61,8 @@ class PaymentProvider(Protocol):
         """
         ...
 
-    async def get_charge_status(
-        self, provider_transaction_id: str
-    ) -> dict[str, str]:
-        """
-        Get charge status from provider.
+    async def get_charge_status(self, provider_transaction_id: str) -> dict[str, str]:
+        """Get charge status from provider.
 
         Returns:
             Dictionary with status information

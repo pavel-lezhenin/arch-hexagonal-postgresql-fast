@@ -19,9 +19,9 @@ from arch_hexagonal_postgresql_fast.application.ports.transaction_repository imp
 )
 
 __all__ = [
-    "PaymentRepository",
-    "TransactionRepository",
-    "PaymentProvider",
     "EventPublisher",
     "IdempotencyStore",
+    "PaymentProvider",
+    "PaymentRepository",
+    "TransactionRepository",
 ]
