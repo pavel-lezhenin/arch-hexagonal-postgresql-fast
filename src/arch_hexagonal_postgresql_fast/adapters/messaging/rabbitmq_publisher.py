@@ -31,6 +31,22 @@ class RabbitMQEventPublisher:
         if self._connection:
             await self._connection.close()
 
+    async def publish_event(
+        self,
+        event_type: str,
+        payload: dict[str, object],
+        routing_key: str = "payments",
+    ) -> None:
+        """Publish a generic event to RabbitMQ.
+
+        Args:
+            event_type: Type of the event (e.g., 'PaymentCreated')
+            payload: Event data as dictionary
+            routing_key: Message routing key
+
+        """
+        await self._publish_event(event_type, payload, routing_key)
+
     async def publish_payment_created(self, payment: Payment) -> None:
         """Publish payment created event."""
         await self._publish_event(
@@ -80,8 +96,20 @@ class RabbitMQEventPublisher:
             },
         )
 
-    async def _publish_event(self, event_type: str, data: dict[str, str | None]) -> None:
-        """Publish an event to RabbitMQ."""
+    async def _publish_event(
+        self,
+        event_type: str,
+        data: dict[str, object],
+        routing_key: str = "payments",
+    ) -> None:
+        """Publish an event to RabbitMQ.
+
+        Args:
+            event_type: Type of the event
+            data: Event payload data
+            routing_key: Message routing key
+
+        """
         if not self._channel:
             raise RuntimeError("Not connected to RabbitMQ")
 
@@ -92,9 +120,9 @@ class RabbitMQEventPublisher:
         }
 
         message = aio_pika.Message(
-            body=json.dumps(event).encode(),
+            body=json.dumps(event, default=str).encode(),
             content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
 
-        await self._channel.default_exchange.publish(message, routing_key="payments")
+        await self._channel.default_exchange.publish(message, routing_key=routing_key)

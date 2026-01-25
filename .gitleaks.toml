@@ -1,0 +1,23 @@
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks
+
+[extend]
+useDefault = true
+
+# Allowlist for false positives
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(?:key|api|token|secret|password|auth)[_]?(?:key|api|token|secret)?["']?\s*[:=]\s*["']?([a-z0-9_\-]{16,})["']?'''
+[rules.allowlist]
+regexes = [
+    '''idempotency_key''',
+    '''idem_''',
+]
+
+# Global allowlist
+[allowlist]
+description = "Test files with fake data"
+paths = [
+    '''tests/.*\.py''',
+]

@@ -127,10 +127,18 @@ async def refund_payment(
     provider: PaymentProvider = Depends(get_payment_provider),
     events: EventPublisher = Depends(get_event_publisher),
     idempotency: IdempotencyStore = Depends(get_idempotency_store),
+    outbox_repo: OutboxRepository = Depends(get_outbox_repository),
 ) -> dict[str, str]:
     """Refund a payment."""
     try:
-        use_case = RefundPayment(payment_repo, transaction_repo, provider, events, idempotency)
+        use_case = RefundPayment(
+            payment_repo,
+            transaction_repo,
+            provider,
+            events,
+            idempotency,
+            outbox_repo,
+        )
 
         # Get payment to determine currency
         payment = await payment_repo.get_by_id(payment_id)

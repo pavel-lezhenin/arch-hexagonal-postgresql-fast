@@ -31,7 +31,7 @@ def mock_outbox_repo() -> Mock:
 def mock_event_publisher() -> Mock:
     """Create mock event publisher."""
     publisher = Mock()
-    publisher.publish = AsyncMock()
+    publisher.publish_event = AsyncMock()
     return publisher
 
 
@@ -81,8 +81,7 @@ class TestOutboxPublisherService:
         count = await service.publish_pending_events()
 
         assert count == 1
-        # Note: EventPublisher integration temporarily disabled
-        # assert mock_event_publisher.publish.called
+        assert mock_event_publisher.publish_event.called
         assert mock_outbox_repo.mark_published.called
 
     async def test_publish_pending_events_with_failure(
@@ -102,10 +101,8 @@ class TestOutboxPublisherService:
         )
 
         mock_outbox_repo.get_unpublished = AsyncMock(return_value=[event])
-        # Note: This test is disabled since EventPublisher integration is temporarily disabled
-        # mock_event_publisher.publish = AsyncMock(
-        #     side_effect=Exception("RabbitMQ error")
-        # )
+        # Make publish_event fail to test failure handling
+        mock_event_publisher.publish_event = AsyncMock(side_effect=Exception("RabbitMQ error"))
 
         service = OutboxPublisherService(
             outbox_repo=mock_outbox_repo,
@@ -115,8 +112,9 @@ class TestOutboxPublisherService:
 
         count = await service.publish_pending_events()
 
-        # Event is marked as published (no actual publishing yet)
-        assert count == 1
+        # Event failed to publish, count should be 0
+        assert count == 0
+        assert mock_outbox_repo.increment_attempts.called
 
     async def test_get_failed_events_count(
         self,
